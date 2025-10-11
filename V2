@@ -1,0 +1,68 @@
+//@version=5
+indicator("Turtle Trading Indicator with ATR Stop Lines", overlay=true)
+
+// Parameters
+lenEntry = input.int(20, "Entry Breakout Length")
+lenExit  = input.int(10, "Exit Channel Length")
+atrLen   = input.int(20, "ATR Length")
+riskPct  = input.float(1.0, "Risk % per Trade", step=0.1)
+
+// Channels
+highestEntry = ta.highest(high, lenEntry)
+lowestEntry  = ta.lowest(low, lenEntry)
+highestExit  = ta.highest(high, lenExit)
+lowestExit   = ta.lowest(low, lenExit)
+
+// ATR-based volatility measure
+atr  = ta.atr(atrLen)
+twoN = 2 * atr
+
+// Position sizing calculation (for display only)
+equity       = 10000.0  // reference equity (since indicators can’t access live account equity)
+riskPerTrade = equity * (riskPct / 100)
+posSize      = riskPerTrade / twoN
+
+// ATR stop lines (based on 2N)
+atrUpper = close + twoN
+atrLower = close - twoN
+
+plot(atrUpper, "ATR Upper Band", color=color.red, transp=20)
+plot(atrLower, "ATR Lower Band", color=color.teal, transp=20)
+
+// Track position state: 1 = long, -1 = short, 0 = flat
+var int pos = 0
+
+// Entry conditions
+longEntry  = pos == 0 and close > highestEntry[1]
+shortEntry = pos == 0 and close < lowestEntry[1]
+
+// Exit conditions
+longExit  = pos == 1 and close < lowestExit[1]
+shortExit = pos == -1 and close > highestExit[1]
+
+// Update position state
+if longEntry
+    pos := 1
+    label.new(bar_index, low, "Long\nSize: " + str.tostring(posSize, format.mintick), 
+              style=label.style_label_up, color=color.green, textcolor=color.white)
+
+if shortEntry
+    pos := -1
+    label.new(bar_index, high, "Short\nSize: " + str.tostring(posSize, format.mintick), 
+              style=label.style_label_down, color=color.red, textcolor=color.white)
+
+if longExit
+    pos := 0
+    label.new(bar_index, high, "Exit long", 
+              style=label.style_label_down, color=color.blue, textcolor=color.white)
+
+if shortExit
+    pos := 0
+    label.new(bar_index, low, "Exit short", 
+              style=label.style_label_up, color=color.orange, textcolor=color.white)
+
+// Plot breakout levels
+plot(highestEntry, "20‑bar High", color=color.green)
+plot(lowestEntry,  "20‑bar Low",  color=color.red)
+plot(highestExit,  "10‑bar High", color=color.orange)
+plot(lowestExit,   "10‑bar Low",  color=color.blue)
