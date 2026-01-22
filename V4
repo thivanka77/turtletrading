@@ -1,0 +1,139 @@
+//@version=5
+indicator("Turtle Trading Indicator with Stats Table", overlay=true)
+
+// Parameters
+lenEntry = input.int(20, "Entry Breakout Length")
+lenExit  = input.int(10, "Exit Channel Length")
+atrLen   = input.int(20, "ATR Length")
+riskPct  = input.float(1.0, "Risk % per Trade", step=0.1)
+showStats = input.bool(true, "Show Trade Stats Table")
+
+// Stats mode toggle -- //
+statsMode = input.string("Both", "Stats Mode", options=["Both", "Long Only", "Short Only"])
+
+
+// ----- lookback distance ---- //
+lookbackBars = input.int(500, "Backtest Lookback Bars")
+
+// Channels
+highestEntry = ta.highest(high, lenEntry)
+lowestEntry  = ta.lowest(low, lenEntry)
+highestExit  = ta.highest(high, lenExit)
+lowestExit   = ta.lowest(low, lenExit)
+
+// ATR
+atr  = ta.atr(atrLen)
+twoN = 2 * atr
+
+// Position sizing
+equity       = input.float(10000, "Account Equity")
+riskPerTrade = equity * (riskPct / 100)
+posSize      = riskPerTrade / twoN
+
+// ATR stop lines (based on 2N)
+atrUpper = close + twoN
+atrLower = close - twoN
+
+plot(atrUpper, "ATR Upper Band", color=color.red, transp=20)
+plot(atrLower, "ATR Lower Band", color=color.teal, transp=20)
+
+// Track position state
+var int pos = 0
+var float entryPrice = na
+var int totalTrades  = 0
+var int totalWins    = 0
+var int totalLosses  = 0
+var float totalGain  = 0.0
+var float totalLoss  = 0.0
+var float totalReturn = 0.0
+
+// Entry conditions
+longEntry  = pos == 0 and close > highestEntry[1]
+shortEntry = pos == 0 and close < lowestEntry[1]
+
+// Exit conditions
+longExit  = pos == 1 and close < lowestExit[1]
+shortExit = pos == -1 and close > highestExit[1]
+
+// --- Trade tracking + signals ---
+if longEntry
+    pos := 1
+    entryPrice := close
+    label.new(bar_index, low, "Long\nSize: " + str.tostring(posSize, format.mintick),
+              style=label.style_label_up, color=color.green, textcolor=color.white)
+
+if shortEntry
+    pos := -1
+    entryPrice := close
+    label.new(bar_index, high, "Short\nSize: " + str.tostring(posSize, format.mintick),
+              style=label.style_label_down, color=color.red, textcolor=color.white)
+
+if longExit and pos == 1 and bar_index >= last_bar_index - lookbackBars
+    if statsMode == "Both" or statsMode == "Long Only"
+        totalTrades += 1
+        tradeReturn = (close - entryPrice) / entryPrice
+        totalReturn += tradeReturn
+        if tradeReturn > 0
+            totalWins += 1
+            totalGain += tradeReturn
+        else
+            totalLosses += 1
+            totalLoss += math.abs(tradeReturn)
+    pos := 0
+    label.new(bar_index, high, "Exit long",
+              style=label.style_label_down, color=color.blue, textcolor=color.white)
+
+if shortExit and pos == -1 and bar_index >= last_bar_index - lookbackBars
+    if statsMode == "Both" or statsMode == "Short Only"
+        totalTrades += 1
+        tradeReturn = (entryPrice - close) / entryPrice
+        totalReturn += tradeReturn
+        if tradeReturn > 0
+            totalWins += 1
+            totalGain += tradeReturn
+        else
+            totalLosses += 1
+            totalLoss += math.abs(tradeReturn)
+    pos := 0
+    label.new(bar_index, low, "Exit short",
+              style=label.style_label_up, color=color.orange, textcolor=color.white)
+
+// --- Compute stats ---
+winRate   = totalTrades > 0 ? (totalWins / totalTrades) * 100 : na
+gainPct   = totalGain * 100
+lossPct   = totalLoss * 100
+avgRR     = totalLosses > 0 ? (totalGain / totalLoss) : na
+avgReturn = totalTrades > 0 ? (totalReturn / totalTrades) * 100 : na
+
+// --- Stats Table ---
+var table statsTable = na
+if showStats and na(statsTable)
+    statsTable := table.new(position.top_right, 2, 7, border_width=1)
+
+if barstate.islast and showStats
+    table.cell(statsTable, 0, 0, "Metric", bgcolor=color.gray, text_color=color.white)
+    table.cell(statsTable, 1, 0, "Value", bgcolor=color.gray, text_color=color.white)
+
+    table.cell(statsTable, 0, 1, "Win Rate %")
+    table.cell(statsTable, 1, 1, str.tostring(winRate, "#.##"))
+
+    table.cell(statsTable, 0, 2, "Gain %")
+    table.cell(statsTable, 1, 2, str.tostring(gainPct, "#.##"))
+
+    table.cell(statsTable, 0, 3, "Loss %")
+    table.cell(statsTable, 1, 3, str.tostring(lossPct, "#.##"))
+
+    table.cell(statsTable, 0, 4, "Avg RR")
+    table.cell(statsTable, 1, 4, str.tostring(avgRR, "#.##"))
+
+    table.cell(statsTable, 0, 5, "Avg Return %")
+    table.cell(statsTable, 1, 5, str.tostring(avgReturn, "#.##"))
+
+    table.cell(statsTable, 0, 6, "Trades (W|L)")
+    table.cell(statsTable, 1, 6, str.tostring(totalTrades, "#") + " (" + str.tostring(totalWins, "#") + "|" + str.tostring(totalLosses, "#") + ")")
+
+// Plot breakout levels
+plot(highestEntry, "20‑bar High", color=color.green)
+plot(lowestEntry,  "20‑bar Low",  color=color.red)
+plot(highestExit,  "10‑bar High", color=color.orange)
+plot(lowestExit,   "10‑bar Low",  color=color.blue)
