@@ -120,6 +120,21 @@ if shortExit and pos == -1 and bar_index >= last_bar_index - lookbackBars
     label.new(bar_index, low, "Exit short",
               style=label.style_label_up, color=color.orange, textcolor=color.white)
 
+// --- Alerts ---
+// Long entry alert
+alertcondition(longEntry, title="Buy Signal", message="Turtle Trading: Long Entry triggered")
+
+// Long exit alert
+alertcondition(longExit, title="Sell Signal (Exit Long)", message="Turtle Trading: Long Exit triggered")
+
+// Short entry alert (optional, if you want to test shorts even though CSE doesn’t allow them)
+alertcondition(shortEntry, title="Short Signal", message="Turtle Trading: Short Entry triggered")
+
+// Short exit alert
+alertcondition(shortExit, title="Cover Signal (Exit Short)", message="Turtle Trading: Short Exit triggered")
+
+
+
 // --- Compute stats ---
 winRate   = totalTrades > 0 ? (totalWins / totalTrades) * 100 : na
 gainPct   = totalGain * 100
